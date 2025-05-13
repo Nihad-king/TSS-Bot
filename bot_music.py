@@ -1,50 +1,64 @@
 import discord
 from discord.ext import commands
 import yt_dlp
+import os
 
 def setup(bot):
-    @bot.command(name="play", help="Spielt Musik von einem YouTube-Link")
-    async def play(ctx, url: str):
-        if not ctx.author.voice or not ctx.author.voice.channel:
-            await ctx.send("⚠️ Du musst zuerst in einen Voice-Channel gehen.")
+    @bot.command()
+    async def join(ctx):
+        if ctx.author.voice:
+            channel = ctx.author.voice.channel
+            if ctx.voice_client is None:
+                await channel.connect()
+                await ctx.send(f"🎧 Joined `{channel.name}`!")
+            else:
+                await ctx.voice_client.move_to(channel)
+        else:
+            await ctx.send("❗ Du musst zuerst einem Voice-Channel beitreten.")
+
+    @bot.command()
+    async def play(ctx, url):
+        if not ctx.author.voice:
+            await ctx.send("❗ Du musst in einem Voice-Channel sein.")
             return
 
-        voice_channel = ctx.author.voice.channel
+        voice_client = ctx.voice_client
+        if not voice_client:
+            await ctx.author.voice.channel.connect()
+            voice_client = ctx.voice_client
 
-        if ctx.voice_client is None:
-            await voice_channel.connect()
-        elif ctx.voice_client.channel != voice_channel:
-            await ctx.voice_client.move_to(voice_channel)
-
+        # Download-Optionen
         ydl_opts = {
             'format': 'bestaudio/best',
             'quiet': True,
-            'default_search': 'auto',
-            'extract_flat': False,
+            'outtmpl': 'song.%(ext)s',
         }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            stream_url = info['url']
+            info = ydl.extract_info(url, download=True)
+            filename = ydl.prepare_filename(info)
 
         source = discord.FFmpegPCMAudio(
-            stream_url,
-            before_options='-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
-            options='-vn'
+            filename,
+            executable="ffmpeg",  # Render benutzt "ffmpeg", lokal ggf. Pfad anpassen
+            options="-vn"
         )
 
-            
-        ctx.voice_client.stop()  # stop previous audio
-        ctx.voice_client.play(source)
+        voice_client.play(source, after=lambda e: print(f"Song finished: {e}"))
+        await ctx.send(f"▶️ Spiele jetzt: **{info['title']}**")
 
-        await ctx.send(f"🎶 Jetzt spiele ich: **{info.get('title', 'Unbekannt')}**")
+    @bot.command()
+    async def stop(ctx):
+        if ctx.voice_client:
+            ctx.voice_client.stop()
+            await ctx.send("⏹️ Musik gestoppt.")
+        else:
+            await ctx.send("❗ Ich bin nicht im Voice-Channel.")
 
-    @bot.command(name="leave", help="Bot verlässt den Voice-Channel")
+    @bot.command()
     async def leave(ctx):
         if ctx.voice_client:
             await ctx.voice_client.disconnect()
-            await ctx.send("👋 Bot hat den Voice-Channel verlassen.")
+            await ctx.send("👋 Verlasse den Voice-Channel.")
         else:
-            await ctx.send("❌ Ich bin in keinem Voice-Channel.")
-
-
+            await ctx.send("❗ Ich bin nicht im Voice-Channel.")
