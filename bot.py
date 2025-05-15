@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 import os
+from activity_check import setup as setup_activity_check
 
 # Intents aktivieren
 intents = discord.Intents.default()
@@ -35,6 +36,9 @@ async def on_ready():
         print("✅ Nachricht wurde im Discord-Channel gesendet.")
     except Exception as e:
         print(f"❌ Error sending: {e}")
+
+
+setup_activity_check(bot)
 
 
 bot.run(os.getenv("TOKEN"))
