@@ -1,59 +1,62 @@
 import discord
 from discord.ext import tasks
-import datetime
+import asyncio
+from datetime import datetime, timedelta
 
-GUILD_ID = 1167097735133016106
+# Konfigurierbare Werte
 ROLE_NAME = "Real Active God"
+MIN_VC_TIME = timedelta(minutes=3)
+INACTIVE_TIMEOUT = timedelta(minutes=10)
 
-# Speichert, wann ein User dem VC beigetreten ist
-voice_join_times = {}
+# Member-ID -> Join-Zeit
+vc_join_times = {}
 
-# Speichert, wann ein User zuletzt im VC gesehen wurde
+# Member-ID -> Letzte bekannte VC-Zeit
 last_seen_in_vc = {}
 
-
-def setup(bot):
+def setup_activity_check(bot):
     @bot.event
-    async def on_ready():
-        check_voice_activity.start(bot)
+    async def on_voice_state_update(member, before, after):
+        guild = member.guild
+        role = discord.utils.get(guild.roles, name=ROLE_NAME)
+
+        now = datetime.utcnow()
+
+        if after.channel and len(after.channel.members) > 1:
+            vc_join_times[member.id] = now
+            last_seen_in_vc[member.id] = now
+        elif before.channel and not after.channel:
+            last_seen_in_vc[member.id] = now
+
+        await asyncio.sleep(1)  # kleiner Delay, damit die Rolle nicht zu schnell entfernt/gesetzt wird
 
     @tasks.loop(seconds=60)
-    async def check_voice_activity(bot):
-        now = datetime.datetime.utcnow()
-        guild = bot.get_guild(GUILD_ID)
-        if not guild:
-            return
+    async def check_voice_activity():
+        now = datetime.utcnow()
 
-        role = discord.utils.get(guild.roles, name=ROLE_NAME)
-        if not role:
-            print(f"⚠️ Rolle '{ROLE_NAME}' nicht gefunden.")
-            return
+        for guild in bot.guilds:
+            role = discord.utils.get(guild.roles, name=ROLE_NAME)
+            if not role:
+                continue
 
-        current_vc_users = set()
+            for member in guild.members:
+                voice = member.voice
 
-        for vc in guild.voice_channels:
-            members = [m for m in vc.members if not m.bot]
-            if len(members) >= 2:
-                for member in members:
-                    current_vc_users.add(member.id)
-                    # Wenn noch nicht gespeichert, jetzt speichern
-                    if member.id not in voice_join_times:
-                        voice_join_times[member.id] = now
-                    # Wenn mehr als 3 Minuten im VC
-                    elif (now - voice_join_times[member.id]).total_seconds() >= 180:
+                # Wenn Member im VC ist mit anderen und lang genug dabei
+                if voice and voice.channel and len(voice.channel.members) > 1:
+                    join_time = vc_join_times.get(member.id)
+                    if join_time and now - join_time >= MIN_VC_TIME:
                         if role not in member.roles:
                             await member.add_roles(role)
-                            print(f"✅ Rolle vergeben an {member.display_name}")
                     last_seen_in_vc[member.id] = now
 
-        # Prüfen, ob jemand die Rolle verlieren sollte
-        for member in guild.members:
-            if member.bot:
-                continue
-            if role in member.roles:
-                last_seen = last_seen_in_vc.get(member.id)
-                if not last_seen or (now - last_seen).total_seconds() >= 600:
-                    await member.remove_roles(role)
-                    voice_join_times.pop(member.id, None)
-                    last_seen_in_vc.pop(member.id, None)
-                    print(f"❌ Rolle entfernt von {member.display_name}")
+                # Wenn Member NICHT im VC ist
+                elif member.id in last_seen_in_vc:
+                    inactive_duration = now - last_seen_in_vc[member.id]
+                    if inactive_duration >= INACTIVE_TIMEOUT:
+                        if role in member.roles:
+                            await member.remove_roles(role)
+                            vc_join_times.pop(member.id, None)
+                            last_seen_in_vc.pop(member.id, None)
+
+    check_voice_activity.start()
