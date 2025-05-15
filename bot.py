@@ -1,44 +1,33 @@
 import discord
 from discord.ext import commands
 import os
-from activity_check import setup as setup_activity_check
 
-# Intents aktivieren
+from activity_tracker import setup as setup_tracker
+from activity_check import setup_activity_check
+
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
-intents.guilds = True
+intents.voice_states = True
+intents.presences = True
 
-# Bot erstellen
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# IDs
-GUILD_ID = 123456789012345678  
-LOG_CHANNEL_ID = 123456789012345678  
+# Server- und Channel-IDs
+GUILD_ID = 1167097735133016106
+LOG_CHANNEL_ID = 1310346537381007370
+INFO_CHANNEL_ID = 1167168385180782754
+TOP_ROLE_NAME = "Real Active God"
 
 @bot.event
 async def on_ready():
-    print(f"✅ {bot.user} ist online!")
-
-    # Server und Channel holen
+    print(f"{bot.user} ist online!")
     guild = bot.get_guild(GUILD_ID)
-    if not guild:
-        print("❌ Server not found. Check GUILD_ID.")
-        return
-
     log_channel = guild.get_channel(LOG_CHANNEL_ID)
-    if not log_channel:
-        print("❌ Channel not found. Check LOG_CHANNEL_ID.")
-        return
-
-    try:
+    if log_channel:
         await log_channel.send(f"🟢 {bot.user.name} ist jetzt online!")
-        print("✅ Nachricht wurde im Discord-Channel gesendet.")
-    except Exception as e:
-        print(f"❌ Error sending: {e}")
 
-
-setup_activity_check(bot)
-
+    setup_tracker(bot, GUILD_ID, TOP_ROLE_NAME, INFO_CHANNEL_ID)
+    setup_activity_check(bot)
 
 bot.run(os.getenv("TOKEN"))
