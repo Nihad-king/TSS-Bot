@@ -2,7 +2,7 @@ import discord
 from discord.ext import commands
 import os
 
-from activity_check import setup_activity_check
+from activity_check import setup
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -11,6 +11,8 @@ intents.voice_states = True
 intents.presences = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
+
+setup(bot)
 
 # Server- und Channel-IDs
 GUILD_ID = 1167097735133016106
