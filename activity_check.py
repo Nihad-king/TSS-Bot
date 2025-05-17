@@ -4,8 +4,8 @@ from datetime import datetime, timedelta
 
 # Konfigurierbare Werte
 ROLE_NAME = "Real Active God"
-MIN_VC_TIME = timedelta(hours=4)
-INACTIVE_TIMEOUT = timedelta(weeks=1)
+MIN_VC_TIME = timedelta(minutes=3)
+INACTIVE_TIMEOUT = timedelta(minutes=5)
 
 # Speicherung der Voice-Aktivität
 voice_times = {}
