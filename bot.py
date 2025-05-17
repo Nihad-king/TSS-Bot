@@ -1,32 +1,21 @@
 import discord
 from discord.ext import commands
 import os
+from activity_check import setup as setup_activity_check
 
-from activity_check import setup
-
-intents = discord.Intents.default()
-intents.message_content = True
-intents.members = True
-intents.voice_states = True
-intents.presences = True
-
+intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
-
-setup(bot)
-
-# Server- und Channel-IDs
-GUILD_ID = 1167097735133016106
-LOG_CHANNEL_ID = 1310346537381007370
-TOP_ROLE_NAME = "Real Active God"
 
 @bot.event
 async def on_ready():
-    print(f"{bot.user} ist online!")
-    guild = bot.get_guild(GUILD_ID)
-    log_channel = guild.get_channel(LOG_CHANNEL_ID)
-    if log_channel:
-        await log_channel.send(f"🟢 {bot.user.name} is now online!")
+    print(f"✅ Bot ist online als {bot.user}")
+    
+    # Setup für Voice-Activity-Check
+    setup_activity_check(bot)
 
-    setup_activity_check(bot) 
+    # Nachricht in den Beförderungskanal senden
+    channel = discord.utils.get(bot.get_all_channels(), name="beförderung")
+    if channel:
+        await channel.send("✅ Der Bot ist jetzt online!")
 
 bot.run(os.getenv("TOKEN"))
