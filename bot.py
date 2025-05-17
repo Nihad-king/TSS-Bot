@@ -23,7 +23,7 @@ async def on_ready():
     guild = bot.get_guild(GUILD_ID)
     log_channel = guild.get_channel(LOG_CHANNEL_ID)
     if log_channel:
-        await log_channel.send(f"🟢 {bot.user.name} ist jetzt online!")
+        await log_channel.send(f"🟢 {bot.user.name} ist now online!")
 
     setup_activity_check(bot) 
 

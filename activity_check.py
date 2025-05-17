@@ -1,62 +1,59 @@
 import discord
 from discord.ext import tasks
-import asyncio
 from datetime import datetime, timedelta
+from discord.utils import get
 
-# Konfigurierbare Werte
+# Werte
 ROLE_NAME = "Real Active God"
-MIN_VC_TIME = timedelta(minutes=3)
-INACTIVE_TIMEOUT = timedelta(minutes=10)
+MIN_VC_TIME = timedelta(hours=4)
+INACTIVE_TIMEOUT = timedelta(weeks=1)
+LOG_CHANNEL_NAME = "beförderungen"
 
-# Member-ID -> Join-Zeit
-vc_join_times = {}
-
-# Member-ID -> Letzte bekannte VC-Zeit
+# Speicherdaten
+joined_at = {}
 last_seen_in_vc = {}
 
-def setup_activity_check(bot):
-    @bot.event
-    async def on_voice_state_update(member, before, after):
-        guild = member.guild
-        role = discord.utils.get(guild.roles, name=ROLE_NAME)
+def setup(bot):
+    check_voice_activity.start(bot)
 
-        now = datetime.utcnow()
+@tasks.loop(seconds=60)
+async def check_voice_activity(bot):
+    for guild in bot.guilds:
+        role = get(guild.roles, name=ROLE_NAME)
+        log_channel = get(guild.text_channels, name=LOG_CHANNEL_NAME)
 
-        if after.channel and len(after.channel.members) > 1:
-            vc_join_times[member.id] = now
-            last_seen_in_vc[member.id] = now
-        elif before.channel and not after.channel:
-            last_seen_in_vc[member.id] = now
+        if not role:
+            print(f"⚠️ Rolle '{ROLE_NAME}' nicht gefunden in {guild.name}")
+            continue
 
-        await asyncio.sleep(1)  # kleiner Delay, damit die Rolle nicht zu schnell entfernt/gesetzt wird
+        for member in guild.members:
+            voice = member.voice
 
-    @tasks.loop(seconds=60)
-    async def check_voice_activity():
-        now = datetime.utcnow()
+            if voice and voice.channel and len(voice.channel.members) >= 2:
+                last_seen_in_vc[member.id] = datetime.utcnow()
+                if member.id not in joined_at:
+                    joined_at[member.id] = datetime.utcnow()
 
-        for guild in bot.guilds:
-            role = discord.utils.get(guild.roles, name=ROLE_NAME)
-            if not role:
-                continue
+                time_in_vc = datetime.utcnow() - joined_at[member.id]
 
-            for member in guild.members:
-                voice = member.voice
+                if time_in_vc >= MIN_VC_TIME and role not in member.roles:
+                    await member.add_roles(role)
+                    print(f"✅ {member} wurde befördert.")
 
-                # Wenn Member im VC ist mit anderen und lang genug dabei
-                if voice and voice.channel and len(voice.channel.members) > 1:
-                    join_time = vc_join_times.get(member.id)
-                    if join_time and now - join_time >= MIN_VC_TIME:
-                        if role not in member.roles:
-                            await member.add_roles(role)
-                    last_seen_in_vc[member.id] = now
+                    if log_channel:
+                        await log_channel.send(f"{member.mention} wurde zur **{ROLE_NAME}** befördert!🎖️")
 
-                # Wenn Member NICHT im VC ist
-                elif member.id in last_seen_in_vc:
-                    inactive_duration = now - last_seen_in_vc[member.id]
-                    if inactive_duration >= INACTIVE_TIMEOUT:
+            else:
+                if member.id in last_seen_in_vc:
+                    time_inactive = datetime.utcnow() - last_seen_in_vc[member.id]
+
+                    if time_inactive >= INACTIVE_TIMEOUT:
                         if role in member.roles:
                             await member.remove_roles(role)
-                            vc_join_times.pop(member.id, None)
-                            last_seen_in_vc.pop(member.id, None)
+                            print(f"⬇️ {member} wurde degradiert.")
 
-    check_voice_activity.start()
+                            if log_channel:
+                                await log_channel.send(f"{member.mention} hat die **{ROLE_NAME}**-Rolle verloren.⚠️")
+
+                        joined_at.pop(member.id, None)
+                        last_seen_in_vc.pop(member.id, None)
