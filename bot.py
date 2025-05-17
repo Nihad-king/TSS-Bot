@@ -16,6 +16,6 @@ async def on_ready():
     # Nachricht in den Beförderungskanal senden
     channel = discord.utils.get(bot.get_all_channels(), name="beförderung")
     if channel:
-        await channel.send("✅ Der Bot ist jetzt online!")
+        await channel.send("🟢 Bot ist jetzt online!")
 
 bot.run(os.getenv("TOKEN"))
