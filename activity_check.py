@@ -53,3 +53,4 @@ async def check_voice_activity(bot):
 def setup(bot):
     check_voice_activity.change_interval(seconds=60)
     check_voice_activity.start(bot)
+    
